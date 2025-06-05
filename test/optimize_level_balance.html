@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cat Jump Game</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: white;
+    }
+    canvas {
+      display: block;
+      background: white;
+    }
+    #gameOverScreen {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.9);
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    #gameOverScreen button {
+      padding: 10px 20px;
+      font-size: 18px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div id="gameOverScreen">
+    <h1>Game Over</h1>
+    <p id="finalScore"></p>
+    <button onclick="restartGame()">Restart</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const gravity = 1.5;
+    let speed = 6;
+    let score = 0;
+    let gameOver = false;
+
+    const catImage = new Image();
+    catImage.src = 'cat_fighter_sprite1.png';
+    const tileImage = new Image();
+    tileImage.src = 'Preview.png';
+
+    const MAX_JUMP_HEIGHT = 150;
+    const MAX_JUMP_DISTANCE = 300;
+
+    const cat = {
+      x: 100,
+      y: 0,
+      width: 50,
+      height: 50,
+      dy: 0,
+      isJumping: false,
+      draw() {
+        if (catImage.complete && catImage.naturalWidth !== 0) {
+          ctx.drawImage(catImage, this.x, this.y, this.width, this.height);
+        } else {
+          ctx.strokeRect(this.x, this.y, this.width, this.height);
+        }
+      },
+      update() {
+        this.dy += gravity;
+        this.y += this.dy;
+        this.draw();
+      },
+      jump() {
+        if (!this.isJumping) {
+          this.dy = -20;
+          this.isJumping = true;
+        }
+      }
+    };
+
+    const grounds = [];
+    const obstacles = [];
+
+    function createGround(forceFirst = false) {
+      const height = 100;
+      const y = forceFirst ? canvas.height - 150 : canvas.height - (Math.random() * 80 + 100);
+      const width = forceFirst ? 1000 : Math.random() * 100 + 200;
+      const gap = forceFirst ? 0 : Math.random() * 50 + 150;
+      const x = grounds.length > 0 ? grounds[grounds.length - 1].x + grounds[grounds.length - 1].width + gap : 0;
+      const ground = { x, y, width, height };
+      grounds.push(ground);
+
+      if (forceFirst) {
+        cat.y = ground.y - cat.height;
+        cat.dy = 0;
+        cat.isJumping = false;
+      }
+    }
+
+    function createObstacle() {
+      const g = grounds[grounds.length - 1];
+      if (!g) return;
+      const maxObstacleHeight = Math.min(MAX_JUMP_HEIGHT - 30, g.y - 80);
+      const height = Math.random() * 40 + 20;
+      const obstacleHeight = Math.min(height, maxObstacleHeight);
+      obstacles.push({
+        x: g.x + g.width / 2,
+        y: g.y - obstacleHeight,
+        width: 30,
+        height: obstacleHeight
+      });
+    }
+
+    function updateGrounds() {
+      for (let i = grounds.length - 1; i >= 0; i--) {
+        const g = grounds[i];
+        g.x -= speed;
+        for (let x = 0; x < g.width; x += 40) {
+          if (tileImage.complete && tileImage.naturalWidth !== 0) {
+            ctx.drawImage(tileImage, g.x + x, g.y, 40, g.height);
+          } else {
+            ctx.strokeRect(g.x + x, g.y, 40, g.height);
+          }
+        }
+        if (g.x + g.width < 0) grounds.splice(i, 1);
+      }
+      if (grounds.length === 0 || grounds[grounds.length - 1].x < canvas.width - 300) {
+        createGround();
+      }
+    }
+
+    function updateObstacles() {
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const ob = obstacles[i];
+        ob.x -= speed;
+        ctx.strokeRect(ob.x, ob.y, ob.width, ob.height);
+        if (
+          cat.x < ob.x + ob.width &&
+          cat.x + cat.width > ob.x &&
+          cat.y < ob.y + ob.height &&
+          cat.y + cat.height > ob.y
+        ) {
+          endGame();
+        }
+        if (ob.x + ob.width < 0) obstacles.splice(i, 1);
+      }
+      if (Math.random() < 0.02) createObstacle();
+    }
+
+    function checkGroundCollision() {
+      let onGround = false;
+      for (const g of grounds) {
+        if (
+          cat.x + cat.width > g.x &&
+          cat.x < g.x + g.width &&
+          cat.y + cat.height >= g.y &&
+          cat.y + cat.height <= g.y + 10
+        ) {
+          onGround = true;
+          cat.y = g.y - cat.height;
+          cat.dy = 0;
+          cat.isJumping = false;
+        }
+      }
+      if (!onGround && cat.y + cat.height >= canvas.height) {
+        endGame();
+      }
+    }
+
+    function endGame() {
+      gameOver = true;
+      document.getElementById('finalScore').innerText = 'Score: ' + Math.floor(score);
+      document.getElementById('gameOverScreen').style.display = 'flex';
+    }
+
+    function restartGame() {
+      grounds.length = 0;
+      obstacles.length = 0;
+      cat.y = 0;
+      cat.dy = 0;
+      speed = 6;
+      score = 0;
+      gameOver = false;
+      document.getElementById('gameOverScreen').style.display = 'none';
+      createGround(true);
+      animate();
+    }
+
+    function animate() {
+      if (gameOver) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      cat.update();
+      updateGrounds();
+      updateObstacles();
+      checkGroundCollision();
+      score += 0.1;
+      speed += 0.001;
+      requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') cat.jump();
+    });
+    window.addEventListener('mousedown', () => cat.jump());
+    window.addEventListener('touchstart', () => cat.jump());
+
+    createGround(true);
+    animate();
+  </script>
+</body>
+</html>
